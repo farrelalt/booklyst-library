@@ -10,9 +10,9 @@ class BookController extends Controller
     public function index()
     {
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'service' => 'BookService',
-            'data'    => Book::all()
+            'data' => Book::all()
         ]);
     }
 
@@ -22,26 +22,32 @@ class BookController extends Controller
 
         if (!$book) {
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Book not found'
             ], 404);
         }
 
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'service' => 'BookService',
-            'data'    => $book
+            'data' => $book
         ]);
     }
 
     public function store(Request $request)
     {
-        $book = Book::create($request->only(['title', 'author', 'isbn', 'stock']));
+        $validated = $request->validate([
+            'title' => 'required|string',
+            'author' => 'required|string',
+            'isbn' => 'required|string|unique:books,isbn',
+            'stock' => 'nullable|integer|min:1',
+        ]);
 
+        $book = Book::create($validated);
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'service' => 'BookService',
-            'data'    => $book
+            'data' => $book
         ], 201);
     }
 
@@ -51,7 +57,7 @@ class BookController extends Controller
 
         if (!$book) {
             return response()->json([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Book not found'
             ], 404);
         }
@@ -61,10 +67,10 @@ class BookController extends Controller
         $loans = json_decode($response->getBody(), true);
 
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'service' => 'BookService (consumer of LoanService)',
-            'book'    => $book,
-            'loans'   => $loans['data'] ?? []
+            'book' => $book,
+            'loans' => $loans['data'] ?? []
         ]);
     }
 }
