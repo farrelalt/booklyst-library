@@ -15,10 +15,10 @@ class LoanController extends Controller
 
         return response()->json
         ([
-            'status'  => 'success',
-            'service' => 'LoanService',
-            'data'    => Loan::all()
-        ]);
+                'status' => 'success',
+                'service' => 'LoanService',
+                'data' => Loan::all()
+            ]);
     }
 
     //GET/api-loan/member - peminjaman by member
@@ -27,10 +27,10 @@ class LoanController extends Controller
         $loans = Loan::where('member_id', $memberId)->get();
         return response()->json
         ([
-            'status'  => 'success',
-            'service' => 'LoanService',
-            'data'    => $loans
-        ]);
+                'status' => 'success',
+                'service' => 'LoanService',
+                'data' => $loans
+            ]);
     }
 
     //GET/api-loan/book - peminjaman by buku
@@ -39,9 +39,24 @@ class LoanController extends Controller
         $loans = Loan::where('book_id', $bookId)->latest()->get();
 
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'service' => 'LoanService',
-            'data'    => $loans
+            'data' => $loans
+        ]);
+    }
+    // PUT /api/loans/{id}/return — kembalikan buku
+    public function returnBook($id)
+    {
+        $loan = Loan::find($id);
+        if (!$loan) {
+            return response()->json(['status' => 'error', 'message' => 'Loan not found'], 404);
+        }
+        $loan->update(['status' => 'returned', 'return_date' => now()->toDateString()]);
+
+        return response()->json([
+            'status' => 'success',
+            'service' => 'LoanService',
+            'data' => $loan->fresh()
         ]);
     }
 
@@ -53,10 +68,10 @@ class LoanController extends Controller
         // 1. Validasi input
         $request->validate
         ([
-            'member_id' => 'required|integer',
-            'book_id' => 'required|integer',
-            'loan_date' => 'nullable|date'
-        ]);
+                'member_id' => 'required|integer',
+                'book_id' => 'required|integer',
+                'loan_date' => 'nullable|date'
+            ]);
 
         // 2. Validasi Member (UserService)
         try {
@@ -64,17 +79,17 @@ class LoanController extends Controller
         } catch (\Exception $e) {
             return response()->json
             ([
-                'status' => 'error',
-                'message' => 'UserService tidak aktif'
-            ], 500);
+                    'status' => 'error',
+                    'message' => 'UserService tidak aktif'
+                ], 500);
         }
 
         if ($memberResp->getStatusCode() !== 200) {
             return response()->json
             ([
-                'status' => 'error',
-                'message' => 'Member not found in UserService'
-            ], 404);
+                    'status' => 'error',
+                    'message' => 'Member not found in UserService'
+                ], 404);
         }
 
         $memberJson = json_decode($memberResp->getBody(), true);
@@ -82,9 +97,9 @@ class LoanController extends Controller
         if (!$memberJson || !isset($memberJson['data'])) {
             return response()->json
             ([
-                'status' => 'error',
-                'message' => 'Invalid response from UserService'
-            ], 500);
+                    'status' => 'error',
+                    'message' => 'Invalid response from UserService'
+                ], 500);
         }
 
         $memberData = $memberJson['data'];
@@ -95,17 +110,17 @@ class LoanController extends Controller
         } catch (\Exception $e) {
             return response()->json
             ([
-                'status' => 'error',
-                'message' => 'BookService tidak aktif'
-            ], 500);
+                    'status' => 'error',
+                    'message' => 'BookService tidak aktif'
+                ], 500);
         }
 
         if ($bookResp->getStatusCode() !== 200) {
             return response()->json
             ([
-                'status' => 'error',
-                'message' => 'Book not found in BookService'
-            ], 404);
+                    'status' => 'error',
+                    'message' => 'Book not found in BookService'
+                ], 404);
         }
 
         $bookJson = json_decode($bookResp->getBody(), true);
@@ -113,9 +128,9 @@ class LoanController extends Controller
         if (!$bookJson || !isset($bookJson['data'])) {
             return response()->json
             ([
-                'status' => 'error',
-                'message' => 'Invalid response from BookService'
-            ], 500);
+                    'status' => 'error',
+                    'message' => 'Invalid response from BookService'
+                ], 500);
         }
 
         $bookData = $bookJson['data'];
@@ -123,21 +138,21 @@ class LoanController extends Controller
         // 4. Simpan ke database
         $loan = Loan::create
         ([
-            'member_id'   => $request->member_id,
-            'book_id'     => $request->book_id,
-            'loan_date'   => $request->loan_date ?? now()->toDateString(),
-            'return_date' => null,
-            'status'      => 'borrowed'
-        ]);
+                'member_id' => $request->member_id,
+                'book_id' => $request->book_id,
+                'loan_date' => $request->loan_date ?? now()->toDateString(),
+                'return_date' => null,
+                'status' => 'borrowed'
+            ]);
 
         // 5. Response
         return response()->json
         ([
-            'status'  => 'success',
-            'service' => 'LoanService',
-            'loan'    => $loan,
-            'member'  => $memberData,
-            'book'    => $bookData
-        ], 201);
+                'status' => 'success',
+                'service' => 'LoanService',
+                'loan' => $loan,
+                'member' => $memberData,
+                'book' => $bookData
+            ], 201);
     }
 }
