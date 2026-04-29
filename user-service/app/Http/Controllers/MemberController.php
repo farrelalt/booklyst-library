@@ -12,9 +12,9 @@ class MemberController extends Controller
     {
         $members = Member::all();
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'service' => 'UserService',
-            'data'    => $members
+            'data' => $members
         ]);
     }
 
@@ -26,20 +26,26 @@ class MemberController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Member not found'], 404);
         }
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'service' => 'UserService',
-            'data'    => $member
+            'data' => $member
         ]);
     }
 
     // POST /api/members — tambah member
     public function store(Request $request)
     {
-        $member = Member::create($request->only(['name', 'email', 'phone']));
+        $validated = $request->validate([
+            'name' => 'required|string',
+            'email' => 'required|email|unique:members,email',
+            'phone' => 'nullable|string',
+        ]);
+
+        $member = Member::create($validated);
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'service' => 'UserService',
-            'data'    => $member
+            'data' => $member
         ], 201);
     }
 
@@ -52,15 +58,15 @@ class MemberController extends Controller
         }
 
         // HTTP request langsung ke LoanService (consumer)
-        $client   = new \GuzzleHttp\Client();
+        $client = new \GuzzleHttp\Client();
         $response = $client->get("http://localhost:8003/api/loans/member/{$id}");
-        $loans    = json_decode($response->getBody(), true);
+        $loans = json_decode($response->getBody(), true);
 
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'service' => 'UserService (consumer of LoanService)',
-            'member'  => $member,
-            'loans'   => $loans['data'] ?? []
+            'member' => $member,
+            'loans' => $loans['data'] ?? []
         ]);
     }
 }
