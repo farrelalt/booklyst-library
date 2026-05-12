@@ -1,0 +1,93 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+      - name: user-service
+        image: booklyst-user:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8000
+        env:
+        - name: APP_ENV
+          value: "production"
+        - name: APP_KEY
+          value: "base64:jECxbBRco6HitxWoZYq3RO1AE0UMJbjN28nQhTK4prk="
+        - name: DB_HOST
+          value: "mysql"
+        - name: DB_DATABASE
+          value: "user_service_db"
+        - name: DB_USERNAME
+          value: "root"
+        - name: DB_PASSWORD
+          value: "secret"
+        - name: QUEUE_CONNECTION
+          value: "redis"
+        - name: REDIS_HOST
+          value: "redis"
+        - name: SESSION_DRIVER
+          value: "file"
+        - name: CACHE_STORE
+          value: "file"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+spec:
+  selector:
+    app: user-service
+  ports:
+  - port: 8000
+    targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user-worker
+  template:
+    metadata:
+      labels:
+        app: user-worker
+    spec:
+      containers:
+      - name: user-worker
+        image: booklyst-user:latest
+        imagePullPolicy: Never
+        command: ["php", "artisan", "queue:work", "redis", "--sleep=3", "--tries=3"]
+        env:
+        - name: APP_ENV
+          value: "production"
+        - name: APP_KEY
+          value: "base64:jECxbBRco6HitxWoZYq3RO1AE0UMJbjN28nQhTK4prk="
+        - name: DB_HOST
+          value: "mysql"
+        - name: DB_DATABASE
+          value: "user_service_db"
+        - name: DB_USERNAME
+          value: "root"
+        - name: DB_PASSWORD
+          value: "secret"
+        - name: QUEUE_CONNECTION
+          value: "redis"
+        - name: REDIS_HOST
+          value: "redis"
+        - name: SESSION_DRIVER
+          value: "file"
+        - name: CACHE_STORE
+          value: "file"
