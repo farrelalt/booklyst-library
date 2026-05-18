@@ -23,6 +23,7 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
       - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+      #3 database berbeda
     networks:
       - booklyst-network
     healthcheck:
@@ -62,6 +63,7 @@ services:
       - booklyst-network
 
   user-worker:
+  #Untuk antrian pada redis
     build: ./user-service
     container_name: booklyst-user-worker
     command: php artisan queue:work redis --sleep=3 --tries=3 --timeout=60
@@ -229,8 +231,10 @@ services:
       - booklyst-network
 
 networks:
+#semua container di jalankan pada koneksi yang sama untuk memungkinkan berkomunikasi
   booklyst-network:
     driver: bridge
 
 volumes:
   mysql-data:
+  #  agar data mysql tidak hilang

@@ -15,8 +15,8 @@ class ProcessLoanRequest implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 3;    // retry 3x kalau gagal
-    public int $timeout = 60; // timeout 60 detik
+    public int $tries = 3;
+    public int $timeout = 60;
 
     public function __construct(
         public int $memberId,
@@ -30,7 +30,7 @@ class ProcessLoanRequest implements ShouldQueue
 
         Log::info("[Queue] Mulai proses loan: member={$this->memberId}, book={$this->bookId}");
 
-        // 1. Cek member ke user-service
+        // 1. Cek member
         try {
             $memberResp = $client->get(env('USER_SERVICE_URL') . "/api/members/{$this->memberId}");
             if ($memberResp->getStatusCode() !== 200) {
@@ -43,31 +43,46 @@ class ProcessLoanRequest implements ShouldQueue
             return;
         }
 
-        // 2. Cek stok buku ke book-service
+        // 2. Cek stok buku
         try {
             $bookResp = $client->get(env('BOOK_SERVICE_URL') . "/api/books/{$this->bookId}");
             if ($bookResp->getStatusCode() !== 200) {
                 Log::error("[Queue] Buku {$this->bookId} tidak ditemukan");
                 return;
             }
+
             $bookData = json_decode($bookResp->getBody(), true)['data'] ?? null;
+
             if (!$bookData || ($bookData['stock'] ?? 0) <= 0) {
                 Log::warning("[Queue] Stok buku {$this->bookId} habis");
                 return;
             }
+
         } catch (\Exception $e) {
             Log::error("[Queue] Gagal koneksi ke book-service: " . $e->getMessage());
             $this->fail($e);
             return;
         }
 
-        // 3. Kurangi stok
-        $client->patch(
-            env('BOOK_SERVICE_URL') . "/api/books/{$this->bookId}/stock",
-            ['json' => ['action' => 'decrement']]
-        );
+        // 3. Kurangi stok (WAJIB VALIDASI RESPONSE)
+        try {
+            $stockResp = $client->patch(
+                env('BOOK_SERVICE_URL') . "/api/books/{$this->bookId}/stock",
+                ['json' => ['action' => 'decrement']]
+            );
 
-        // 4. Simpan loan ke database
+            if ($stockResp->getStatusCode() !== 200) {
+                Log::error("[Queue] Gagal mengurangi stok buku {$this->bookId}");
+                return;
+            }
+
+        } catch (\Exception $e) {
+            Log::error("[Queue] Error saat mengurangi stok: " . $e->getMessage());
+            $this->fail($e);
+            return;
+        }
+
+        // 4. Simpan loan
         $loan = Loan::create([
             'member_id'   => $this->memberId,
             'book_id'     => $this->bookId,

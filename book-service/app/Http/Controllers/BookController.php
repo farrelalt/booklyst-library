@@ -33,7 +33,41 @@ class BookController extends Controller
             'data' => $book
         ]);
     }
+    public function updateStock(Request $request, $id)
+    {
+        $book = Book::find($id);
 
+        if (!$book) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Book not found'
+            ], 404);
+        }
+
+        $action = $request->input('action');
+
+        if ($action === 'decrement') {
+            if ($book->stock <= 0) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Stock habis'
+                ], 422);
+            }
+            $book->stock -= 1;
+        }
+
+        if ($action === 'increment') {
+            $book->stock += 1;
+        }
+
+        $book->save();
+
+        return response()->json([
+            'status' => 'success',
+            'service' => 'BookService',
+            'data' => $book
+        ]);
+    }
     public function store(Request $request)
     {
         $validated = $request->validate([
