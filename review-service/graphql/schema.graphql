@@ -9,6 +9,9 @@ type Review {
 }
 
 type Query {
+    reviews: [Review!]!
+        @field(resolver: "App\\GraphQL\\Queries\\ReviewQueries@all")
+
     review(id: ID!): Review
         @field(resolver: "App\\GraphQL\\Queries\\ReviewQueries@find")
 
