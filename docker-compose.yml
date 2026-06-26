@@ -1,0 +1,241 @@
+version: '3.8'
+
+services:
+
+  # Redis — broker untuk async queue
+  redis:
+    image: redis:7-alpine
+    container_name: booklyst-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - booklyst-network
+
+  # MySQL — satu server, tiga database berbeda
+  mysql:
+    image: mysql:8.0
+    container_name: booklyst-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: user_service_db
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+      #3 database berbeda
+    networks:
+      - booklyst-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-psecret"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # User Service
+  user-service:
+    build: ./user-service
+    container_name: booklyst-user
+    ports:
+      - "8001:8000"
+    environment:
+      APP_NAME: UserService
+      APP_ENV: production
+      APP_KEY: base64:jECxbBRco6HitxWoZYq3RO1AE0UMJbjN28nQhTK4prk=
+      APP_DEBUG: "false"
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: user_service_db
+      DB_USERNAME: root
+      DB_PASSWORD: secret
+      QUEUE_CONNECTION: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SESSION_DRIVER: file
+      CACHE_STORE: file
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - booklyst-network
+
+  user-worker:
+  #Untuk antrian pada redis
+    build: ./user-service
+    container_name: booklyst-user-worker
+    command: php artisan queue:work redis --sleep=3 --tries=3 --timeout=60
+    environment:
+      APP_ENV: production
+      APP_KEY: base64:jECxbBRco6HitxWoZYq3RO1AE0UMJbjN28nQhTK4prk=
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_DATABASE: user_service_db
+      DB_USERNAME: root
+      DB_PASSWORD: secret
+      QUEUE_CONNECTION: redis
+      REDIS_HOST: redis
+      SESSION_DRIVER: file
+      CACHE_STORE: file
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - booklyst-network
+    restart: unless-stopped
+
+  # Book Service
+  book-service:
+    build: ./book-service
+    container_name: booklyst-book
+    ports:
+      - "8002:8000"
+    environment:
+      APP_NAME: BookService
+      APP_ENV: production
+      APP_KEY: base64:dk9ZMKLRlKGMsEuV0x2J0w1ue0kiiNQZjK3DqKaw9DE=
+      APP_DEBUG: "false"
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: book_service_db
+      DB_USERNAME: root
+      DB_PASSWORD: secret
+      QUEUE_CONNECTION: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SESSION_DRIVER: file
+      CACHE_STORE: file
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - booklyst-network
+
+  book-worker:
+    build: ./book-service
+    container_name: booklyst-book-worker
+    command: php artisan queue:work redis --sleep=3 --tries=3 --timeout=60
+    environment:
+      APP_ENV: production
+      APP_KEY: base64:dk9ZMKLRlKGMsEuV0x2J0w1ue0kiiNQZjK3DqKaw9DE=
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_DATABASE: book_service_db
+      DB_USERNAME: root
+      DB_PASSWORD: secret
+      QUEUE_CONNECTION: redis
+      REDIS_HOST: redis
+      SESSION_DRIVER: file
+      CACHE_STORE: file
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - booklyst-network
+    restart: unless-stopped
+
+  # Loan Service
+  loan-service:
+    build: ./loan-service
+    container_name: booklyst-loan
+    ports:
+      - "8003:8000"
+
+    environment:
+      APP_NAME: LoanService
+      APP_ENV: production
+      APP_KEY: base64:rN8Jz5OU9Vyt0ZJopPUcr47xvZ+yLN2tHvvYLoGK0Wo=
+      APP_DEBUG: "false"
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: loan_service_db
+      DB_USERNAME: root
+      DB_PASSWORD: secret
+      QUEUE_CONNECTION: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SESSION_DRIVER: file
+      CACHE_STORE: file
+      USER_SERVICE_URL: http://user-service:8000
+      BOOK_SERVICE_URL: http://book-service:8000
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      user-service:
+        condition: service_started
+      book-service:
+        condition: service_started
+    networks:
+      - booklyst-network
+
+  loan-worker:
+    build: ./loan-service
+    container_name: booklyst-loan-worker
+    command: php artisan queue:work redis --sleep=3 --tries=3 --timeout=60
+    environment:
+      APP_ENV: production
+      APP_KEY: base64:rN8Jz5OU9Vyt0ZJopPUcr47xvZ+yLN2tHvvYLoGK0Wo=
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_DATABASE: loan_service_db
+      DB_USERNAME: root
+      DB_PASSWORD: secret
+      QUEUE_CONNECTION: redis
+      REDIS_HOST: redis
+      SESSION_DRIVER: file
+      CACHE_STORE: file
+      USER_SERVICE_URL: http://user-service:8000
+      BOOK_SERVICE_URL: http://book-service:8000
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - booklyst-network
+    restart: unless-stopped
+
+  # Frontend UI
+  frontend-ui:
+    build: ./frontend-ui
+    container_name: booklyst-frontend
+    ports:
+      - "8000:8000"
+    environment:
+      APP_NAME: Booklyst-Library
+      APP_ENV: production
+      APP_KEY: base64:dxU9s8+BU5s9N8m8fkbnhtvsWp5C67pTMWgWmMZYvqs=
+      APP_DEBUG: "false"
+      SESSION_DRIVER: file
+      CACHE_STORE: file
+      QUEUE_CONNECTION: sync
+      USER_SERVICE_URL: http://user-service:8000
+      BOOK_SERVICE_URL: http://book-service:8000
+      LOAN_SERVICE_URL: http://loan-service:8000
+    depends_on:
+      - user-service
+      - book-service
+      - loan-service
+    networks:
+      - booklyst-network
+
+networks:
+#semua container di jalankan pada koneksi yang sama untuk memungkinkan berkomunikasi
+  booklyst-network:
+    driver: bridge
+
+volumes:
+  mysql-data:
+  #  agar data mysql tidak hilang
