@@ -8,5 +8,7 @@ Route::prefix('loans')->group(function () {
     Route::get('/member/{memberId}', [LoanController::class, 'byMember']);
     Route::get('/book/{bookId}', [LoanController::class, 'byBook']);
     Route::post('/', [LoanController::class, 'store']);
+    Route::put('/{id}/return', [LoanController::class, 'returnBook']);
+});
     Route::put('/{id}/return', [LoanController::class, 'returnBook']); // ← hapus /loans
 });

@@ -37,7 +37,14 @@ class LoanController extends Controller
         ]);
     }
 
-    // ✅ Sekarang ASYNC — langsung dispatch ke Redis Queue
+    public function show($id)
+    {
+        $loan = Loan::findOrFail($id);
+
+        return response()->json($loan);
+    }
+
+    //POST/api-loan - buat peminjaman baru
     public function store(Request $request)
     {
         $request->validate([
