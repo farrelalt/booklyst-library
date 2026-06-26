@@ -4,44 +4,36 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Loan;
+use App\Jobs\ProcessLoanRequest;
 use GuzzleHttp\Client;
+use Illuminate\Support\Facades\Log;
 
 class LoanController extends Controller
 {
-    //GET/api-loan / - semua peminjaman
     public function index()
     {
-        $loans = Loan::latest()->get();
-
-        return response()->json
-        ([
-            'status'  => 'success',
-            'service' => 'LoanService',
-            'data'    => Loan::all()
-        ]);
-    }
-
-    //GET/api-loan/member - peminjaman by member
-    public function byMember($memberId)
-    {
-        $loans = Loan::where('member_id', $memberId)->get();
-        return response()->json
-        ([
-            'status'  => 'success',
-            'service' => 'LoanService',
-            'data'    => $loans
-        ]);
-    }
-
-    //GET/api-loan/book - peminjaman by buku
-    public function byBook($bookId)
-    {
-        $loans = Loan::where('book_id', $bookId)->latest()->get();
-
         return response()->json([
             'status'  => 'success',
             'service' => 'LoanService',
-            'data'    => $loans
+            'data'    => Loan::latest()->get()
+        ]);
+    }
+
+    public function byMember($memberId)
+    {
+        return response()->json([
+            'status' => 'success',
+            'service' => 'LoanService',
+            'data'   => Loan::where('member_id', $memberId)->get()
+        ]);
+    }
+
+    public function byBook($bookId)
+    {
+        return response()->json([
+            'status' => 'success',
+            'service' => 'LoanService',
+            'data'   => Loan::where('book_id', $bookId)->latest()->get()
         ]);
     }
 
@@ -55,96 +47,54 @@ class LoanController extends Controller
     //POST/api-loan - buat peminjaman baru
     public function store(Request $request)
     {
-        $client = new \GuzzleHttp\Client(['http_errors' => false]);
-
-        // 1. Validasi input
-        $request->validate
-        ([
+        $request->validate([
             'member_id' => 'required|integer',
-            'book_id' => 'required|integer',
-            'loan_date' => 'nullable|date'
+            'book_id'   => 'required|integer',
+            'loan_date' => 'nullable|date',
         ]);
 
-        // 2. Validasi Member (UserService)
+        // Lempar job ke Redis, tidak tunggu selesai
+        ProcessLoanRequest::dispatch(
+            $request->member_id,
+            $request->book_id,
+            $request->loan_date ?? now()->toDateString()
+        );
+
+        // Langsung balas 202 (Accepted) ke client
+        return response()->json([
+            'status'  => 'queued',
+            'service' => 'LoanService',
+            'message' => 'Permintaan peminjaman sedang diproses secara asinkron',
+        ], 202);
+    }
+
+    public function returnBook($id)
+    {
+        $loan = Loan::find($id);
+        if (!$loan) {
+            return response()->json(['status' => 'error', 'message' => 'Loan not found'], 404);
+        }
+        if ($loan->status === 'returned') {
+            return response()->json(['status' => 'error', 'message' => 'Buku sudah dikembalikan'], 422);
+        }
+
+        $loan->update(['status' => 'returned', 'return_date' => now()->toDateString()]);
+
+        // Tambah stok kembali (tetap sinkron, karena harus konfirmasi)
         try {
-            $memberResp = $client->get("http://localhost:8001/api/members/{$request->member_id}");
+            $client = new Client(['http_errors' => false, 'timeout' => 10]);
+            $client->patch(
+                env('BOOK_SERVICE_URL', 'http://book-service:8000') . "/api/books/{$loan->book_id}/stock",
+                ['json' => ['action' => 'increment']]
+            );
         } catch (\Exception $e) {
-            return response()->json
-            ([
-                'status' => 'error',
-                'message' => 'UserService tidak aktif'
-            ], 500);
+            Log::warning("Gagal increment stok: " . $e->getMessage());
         }
 
-        if ($memberResp->getStatusCode() !== 200) {
-            return response()->json
-            ([
-                'status' => 'error',
-                'message' => 'Member not found in UserService'
-            ], 404);
-        }
-
-        $memberJson = json_decode($memberResp->getBody(), true);
-
-        if (!$memberJson || !isset($memberJson['data'])) {
-            return response()->json
-            ([
-                'status' => 'error',
-                'message' => 'Invalid response from UserService'
-            ], 500);
-        }
-
-        $memberData = $memberJson['data'];
-
-        // 3. Validasi Book (BookService)
-        try {
-            $bookResp = $client->get("http://localhost:8002/api/books/{$request->book_id}");
-        } catch (\Exception $e) {
-            return response()->json
-            ([
-                'status' => 'error',
-                'message' => 'BookService tidak aktif'
-            ], 500);
-        }
-
-        if ($bookResp->getStatusCode() !== 200) {
-            return response()->json
-            ([
-                'status' => 'error',
-                'message' => 'Book not found in BookService'
-            ], 404);
-        }
-
-        $bookJson = json_decode($bookResp->getBody(), true);
-
-        if (!$bookJson || !isset($bookJson['data'])) {
-            return response()->json
-            ([
-                'status' => 'error',
-                'message' => 'Invalid response from BookService'
-            ], 500);
-        }
-
-        $bookData = $bookJson['data'];
-
-        // 4. Simpan ke database
-        $loan = Loan::create
-        ([
-            'member_id'   => $request->member_id,
-            'book_id'     => $request->book_id,
-            'loan_date'   => $request->loan_date ?? now()->toDateString(),
-            'return_date' => null,
-            'status'      => 'borrowed'
-        ]);
-
-        // 5. Response
-        return response()->json
-        ([
+        return response()->json([
             'status'  => 'success',
             'service' => 'LoanService',
-            'loan'    => $loan,
-            'member'  => $memberData,
-            'book'    => $bookData
-        ], 201);
+            'data'    => $loan->fresh()
+        ]);
     }
 }

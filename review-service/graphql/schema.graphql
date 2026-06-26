@@ -1,0 +1,36 @@
+type Review {
+    id: ID!
+    member_id: Int!
+    book_id: Int!
+    rating: Int!
+    comment: String
+    created_at: String
+    updated_at: String
+}
+
+type Query {
+    reviews: [Review!]!
+        @field(resolver: "App\\GraphQL\\Queries\\ReviewQueries@all")
+
+    review(id: ID!): Review
+        @field(resolver: "App\\GraphQL\\Queries\\ReviewQueries@find")
+
+    reviewsByBook(book_id: Int!): [Review!]!
+        @field(resolver: "App\\GraphQL\\Queries\\ReviewQueries@byBook")
+
+    reviewsByMember(member_id: Int!): [Review!]!
+        @field(resolver: "App\\GraphQL\\Queries\\ReviewQueries@byMember")
+}
+
+type Mutation {
+    createReview(
+        member_id: Int!
+        book_id: Int!
+        rating: Int!
+        comment: String
+    ): Review!
+        @field(resolver: "App\\GraphQL\\Mutations\\ReviewMutations@create")
+
+    deleteReview(id: ID!): Review
+        @field(resolver: "App\\GraphQL\\Mutations\\ReviewMutations@delete")
+}

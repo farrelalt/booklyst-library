@@ -149,7 +149,6 @@ services:
     container_name: booklyst-loan
     ports:
       - "8003:8000"
-
     environment:
       APP_NAME: LoanService
       APP_ENV: production
@@ -206,7 +205,69 @@ services:
     networks:
       - booklyst-network
     restart: unless-stopped
+  # reviews
+  review-service:
+    build: ./review-service
+    container_name: booklyst-review
+    ports:
+      - "8004:8000"
+    environment:
+      APP_NAME: ReviewService
+      APP_ENV: local
+      APP_KEY: base64:F3L8ROvFgjI6WGPygrm6wlXOS4Qug5nELfjXjQNDlT0=
+      APP_DEBUG: "true"
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: review_service_db
+      DB_USERNAME: root
+      DB_PASSWORD: secret
+      QUEUE_CONNECTION: redis
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: redis
+      REDIS_PASSWORD: "null"
+      REDIS_PORT: 6379
+      SESSION_DRIVER: file
+      CACHE_STORE: file
+      USER_SERVICE_URL: http://user-service:8000
+      BOOK_SERVICE_URL: http://book-service:8000
+      LOAN_SERVICE_URL: http://loan-service:8000
+    depends_on:
+      - mysql
+      - redis
+      - user-service
+      - book-service
+      - loan-service
+    networks:
+      - booklyst-network
 
+  review-worker:
+    build: ./review-service
+    container_name: booklyst-review-worker
+    command: php artisan queue:work redis --sleep=3 --tries=3 --timeout=60
+    environment:
+      APP_NAME: ReviewService
+      APP_ENV: local
+      APP_KEY: base64:F3L8ROvFgjI6WGPygrm6wlXOS4Qug5nELfjXjQNDlT0=
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: review_service_db
+      DB_USERNAME: root
+      DB_PASSWORD: secret
+      QUEUE_CONNECTION: redis
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: redis
+      REDIS_PASSWORD: "null"
+      REDIS_PORT: 6379
+      SESSION_DRIVER: file
+      CACHE_STORE: file
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - booklyst-network
+    restart: unless-stopped
   # Frontend UI
   frontend-ui:
     build: ./frontend-ui
