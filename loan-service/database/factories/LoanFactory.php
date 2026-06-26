@@ -1,35 +1,63 @@
 <?php
 
-namespace Database\Factories;
+namespace App\GraphQL\Mutations;
 
 use App\Models\Loan;
-use Illuminate\Database\Eloquent\Factories\Factory;
+use App\Services\ExternalService;
 
-/**
- * @extends Factory<Loan>
- */
-class LoanFactory extends Factory
+class LoanMutation
 {
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
-    public function definition(): array
+    protected $service;
+
+    public function __construct(ExternalService $service)
     {
-        return [
-            'member_id' => rand(1, 10),
-            'book_id' => rand(1, 20),
+        $this->service = $service;
+    }
 
+    // ================= CREATE LOAN =================
+    public function createLoan($_, array $args)
+    {
+        $user = $this->service->getUser($args['user_id']);
+        $book = $this->service->getBook($args['book_id']);
+
+        if (!$user || !$book) {
+            throw new \Exception("User atau Book tidak ditemukan");
+        }
+
+        // simpan loan
+        $loan = Loan::create([
+            'user_id' => $args['user_id'],
+            'book_id' => $args['book_id'],
             'loan_date' => now(),
-
             'return_date' => null,
+            'status' => 'borrowed'
+        ]);
 
-            'status' => fake()->randomElement([
-                'borrowed',
-                'returned',
-                'overdue'
-            ]),
-        ];
+        // update status book ke borrowed
+        $this->service->updateBookStatus($args['book_id'], 'borrowed');
+
+        return $loan;
+    }
+
+    // ================= UPDATE LOAN =================
+    public function updateLoan($_, array $args)
+    {
+        $loan = Loan::find($args['id']);
+
+        if (!$loan) {
+            throw new \Exception("Loan tidak ditemukan");
+        }
+
+        $loan->update([
+            'return_date' => $args['return_date'] ?? $loan->return_date,
+            'status' => $args['status'] ?? $loan->status,
+        ]);
+
+        // kalau dikembalikan → update book status
+        if (($args['status'] ?? null) === 'returned') {
+            $this->service->updateBookStatus($loan->book_id, 'available');
+        }
+
+        return $loan;
     }
 }

@@ -1,0 +1,40 @@
+type Loan {
+    id: ID!
+    member_id: Int!
+    book_id: Int!
+    loan_date: String!
+    return_date: String
+    status: String!
+    created_at: String!
+    updated_at: String!
+}
+
+type Query {
+    #Menampilkan semua loan
+    loans: [Loan!]! @all
+
+    #Menampilkan loan berdasarkan member
+    loansByMember(
+        member_id: Int! @where(key: "member_id")
+    ): [Loan!]! @all
+
+    #Menampilkan loan berdasarkan buku
+    loansByBook(
+        book_id: Int! @where(key: "book_id")
+    ): [Loan!]! @all
+
+}
+
+type Mutation {
+    createLoan(
+        member_id: Int!
+        book_id: Int!
+        loan_date: String
+    ): Loan @field(resolver: "App\\GraphQL\\Mutations\\LoanMutation@createLoan")
+
+    updateLoan(
+        id: ID!
+        status: String
+        return_date: String
+    ): Loan @field(resolver: "App\\GraphQL\\Mutations\\LoanMutation@updateLoan")
+}

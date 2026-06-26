@@ -16,6 +16,7 @@ return [
 
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
+
     ],
 
     'resend' => [
@@ -33,6 +34,14 @@ return [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
+    ],
+
+    'user_service' => [
+    'url' => env('USER_SERVICE_URL', 'http://user-service:8000'),
+    ],
+
+    'book_service' => [
+        'url' => env('BOOK_SERVICE_URL', 'http://book-service:8000'),
     ],
 
 ];

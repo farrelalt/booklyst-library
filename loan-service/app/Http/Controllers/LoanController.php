@@ -45,6 +45,13 @@ class LoanController extends Controller
         ]);
     }
 
+    public function show($id)
+    {
+        $loan = Loan::findOrFail($id);
+
+        return response()->json($loan);
+    }
+
     //POST/api-loan - buat peminjaman baru
     public function store(Request $request)
     {
